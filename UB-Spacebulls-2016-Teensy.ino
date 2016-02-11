@@ -5,6 +5,9 @@
 #include <Servo.h>
 #include <SPI.h>
 #include <Wire.h>
+#include "Adafruit_Sensor.h"
+#include "Adafruit_BNO055.h"
+#include "utility/imumaths.h"
 #include "Actuators.h"
 #include "Adafruit_MCP23017.h"
 Adafruit_MCP23017 mcp;
@@ -21,11 +24,11 @@ Adafruit_MCP23017 mcp;
 
 #define LEFTMOTOR Serial1
 #define RIGHTMOTOR Serial3
-
+/* Set the delay between fresh Gyroscope and acclerometer samples */
+#define BNO055_SAMPLERATE_DELAY_MS (100)
 byte ADDRESS = 128;
 
 Servo baseServo;  // create servo object to control a servo
-
 Servo manipulatorServo;
 Servo clawServo;
 
@@ -42,8 +45,46 @@ int elbowVal = 0;
 byte motorLeftSpeed = 0;
 byte motorRightSpeed = 0;
 
+ /*Create BNO055 object to access Gyro sensor reading*/
+Adafruit_BNO055 bno = Adafruit_BNO055(55);
+/**************************************************************************/
+/*
+    Displays some basic information on this sensor from the unified
+    sensor API sensor_t type (see Adafruit_Sensor for more information)
+*/
+/**************************************************************************/
+void displaySensorDetails(void)
+{
+  sensor_t sensor;
+  bno.getSensor(&sensor);
+  Serial.println("------------------------------------");
+  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" xxx");
+  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" xxx");
+  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" xxx");
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
+}
 void setup()
 {
+
+  Serial.begin(115200);
+  Serial.println("Orientation Sensor Test"); Serial.println("");
+  
+  /* Initialise the BNO055 sensor */
+  if(!bno.begin())
+  {
+    /* There was a problem detecting the BNO055 ... check your connections */
+    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    while(1);
+  }
+
+    /* Display some basic information on this sensor */
+  displaySensorDetails();
+
   mcp.begin();      // use default address 0
   pinMode(13, OUTPUT);
   pinMode(leftElbowPWM, OUTPUT);
@@ -100,8 +141,7 @@ void setup()
 
   manipulatorServo.attach(2, 600, 2400);  // attaches the servo on pin 9 to the servo object
   clawServo.attach(11, 500, 1500);  // attaches the servo on pin 9 to the servo object
-
-  Serial.begin(115200);
+  
   LEFTMOTOR.begin(38400);
   RIGHTMOTOR.begin(38400);
 
@@ -109,6 +149,12 @@ void setup()
 
 void loop()
 {
+  
+   /* Get a new BNO055 sensor event */
+  sensors_event_t event;
+  bno.getEvent(&event);
+  float prev_pitchValue;
+  
   int milliSeconds = millis() + 1000;
   int armSeconds = millis() + 20000;
 
@@ -123,21 +169,47 @@ void loop()
     }
   }
 
-  if (Serial.read() == 's') {
+  if (Serial.read() == 's') 
+  {
     //Read from rover computer
     elbowPosition = Serial.parseInt();
     shoulderPosition = Serial.parseInt();
     basePosition = Serial.parseInt();
     manipulatorPosition = Serial.parseInt();
     clawPosition = Serial.parseInt();
-
+   
     setMotors();
 
-    Serial.print(0);//pitch
-    Serial.print(",");
-    Serial.print(0);//roll
-    Serial.println(",");
-    Serial.flush();
+    if ((event.orientation.y > 10) || (event.orientation.y <-10))
+    {
+      /*Active Suspension needed*/
+      if(prev_pitchValue < event.orientation.y)
+      {
+        setActuatorSpeed(leftRear, 40);
+        setActuatorSpeed(rightRear, 40);
+        Serial.print("Raise Rear Wheels");
+        Serial.println(F(""));
+      }
+      else
+      {
+        setActuatorSpeed(leftFront, 40);
+        setActuatorSpeed(rightFront, 40);
+        Serial.print("Raise Front Wheels");
+        Serial.println(F(""));
+      }
+    }
+    else
+    {
+      /*Active Suspension Not needed*/
+    }
+    prev_pitchValue = event.orientation.y;
+    Serial.print(F("\n"));
+    Serial.print((float)event.orientation.x);
+    Serial.print(F(" "));
+    Serial.print((float)event.orientation.y);
+    Serial.print(F(" "));
+    Serial.print((float)event.orientation.z);
+    Serial.println(F(""));
   }
 
   setArmPositions();
