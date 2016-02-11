@@ -70,7 +70,7 @@ void displaySensorDetails(void)
 }
 void setup()
 {
-
+  delay(2000);
   Serial.begin(115200);
   Serial.println("Orientation Sensor Test"); Serial.println("");
   
@@ -83,9 +83,13 @@ void setup()
   }
 
     /* Display some basic information on this sensor */
-  displaySensorDetails();
+  //displaySensorDetails();
 
   mcp.begin();      // use default address 0
+  
+  IntervalTimer suspension;
+  suspension.begin(adjustSuspension, 50000);
+  Serial.println("Start Timer");
   pinMode(13, OUTPUT);
   pinMode(leftElbowPWM, OUTPUT);
   pinMode(rightElbowPWM, OUTPUT);
@@ -115,33 +119,14 @@ void setup()
   mcp.pinMode(muxB, OUTPUT);
   mcp.pinMode(muxC, OUTPUT);
 
-//  while(1) {
-//    digitalWrite(leftRearPWM, HIGH);
-//    delay(1000);
-//    digitalWrite(leftRearPWM, LOW);
-//    delay(1000);
-//  }
-  setActuatorSpeed(leftRear, 80);
-  delay(1000);
-  setActuatorSpeed(leftRear, 0);
-  delay(500);
-  setActuatorSpeed(leftRear, -80);
-  delay(1000);
-  setActuatorSpeed(leftRear, 0);
-  delay(1000000000);
-  
-  //shoulderActuator.write(1000); TODO
-  //delay(7000);
-
-  //elbowActuator.write(1000);TODO
-  delay(2000);
+  //TODO: Elbow and Shoulder to starting positions
 
   baseServo.attach(12, 1100, 1900);  // attaches the servo on pin 9 to the servo object
   baseServo.write(1500);
 
   manipulatorServo.attach(2, 600, 2400);  // attaches the servo on pin 9 to the servo object
   clawServo.attach(11, 500, 1500);  // attaches the servo on pin 9 to the servo object
-  
+
   LEFTMOTOR.begin(38400);
   RIGHTMOTOR.begin(38400);
 
@@ -149,11 +134,6 @@ void setup()
 
 void loop()
 {
-  
-   /* Get a new BNO055 sensor event */
-  sensors_event_t event;
-  bno.getEvent(&event);
-  float prev_pitchValue;
   
   int milliSeconds = millis() + 1000;
   int armSeconds = millis() + 20000;
@@ -177,43 +157,11 @@ void loop()
     basePosition = Serial.parseInt();
     manipulatorPosition = Serial.parseInt();
     clawPosition = Serial.parseInt();
-   
+    setArmPositions();
     setMotors();
-
-    if ((event.orientation.y > 10) || (event.orientation.y <-10))
-    {
-      /*Active Suspension needed*/
-      if(prev_pitchValue < event.orientation.y)
-      {
-        setActuatorSpeed(leftRear, 40);
-        setActuatorSpeed(rightRear, 40);
-        Serial.print("Raise Rear Wheels");
-        Serial.println(F(""));
-      }
-      else
-      {
-        setActuatorSpeed(leftFront, 40);
-        setActuatorSpeed(rightFront, 40);
-        Serial.print("Raise Front Wheels");
-        Serial.println(F(""));
-      }
-    }
-    else
-    {
-      /*Active Suspension Not needed*/
-    }
-    prev_pitchValue = event.orientation.y;
-    Serial.print(F("\n"));
-    Serial.print((float)event.orientation.x);
-    Serial.print(F(" "));
-    Serial.print((float)event.orientation.y);
-    Serial.print(F(" "));
-    Serial.print((float)event.orientation.z);
-    Serial.println(F(""));
   }
 
-  setArmPositions();
-  
+  //setArmPositions() used to be here?  
 }//END VOID LOOP
 
 
@@ -546,5 +494,34 @@ void setActuatorSpeed(actuator act, int speed2) {
     }
   }
   
+}
+
+void adjustSuspension() {
+  float errorP;
+  int totalError;
+  int Kp = 50;
+  bool pitchCorrect = 1;
+  float levelValue = 4;
+  Serial.println("beginning");
+  sensors_event_t event;
+  bno.getEvent(&event);
+  errorP = event.orientation.y - levelValue;
+  totalError = Kp * errorP;
+  if (totalError >= 255) {
+    totalError = 255;
+  }
+  Serial.println(totalError);
+  if (totalError >= 40 || totalError <=-40) {
+    setActuatorSpeed(leftFront, totalError);
+    setActuatorSpeed(rightFront, totalError);
+    setActuatorSpeed(leftRear, -totalError);
+    setActuatorSpeed(rightRear, -totalError);
+  }
+  else {
+    setActuatorSpeed(leftFront, 0);
+    setActuatorSpeed(rightFront, 0);
+    setActuatorSpeed(leftRear, 0);
+    setActuatorSpeed(rightRear, 0);
+  }
 }
 
