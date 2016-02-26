@@ -45,6 +45,11 @@ int elbowVal = 0;
 byte motorLeftSpeed = 0;
 byte motorRightSpeed = 0;
 
+boolean controlFlag = false;
+
+int elbowSetPosition = 0;
+int shoulderSetPosition = 0;
+
 /*Create BNO055 object to access Gyro sensor reading*/
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 /**************************************************************************/
@@ -167,19 +172,19 @@ void loop()
       //shoulderActuator.write(1000); TODO // sets the servo position according to the scaled value
     }
   }
+  
+  
+  char controlType = Serial.read();
+  //Read from rover computer
+  elbowPosition = Serial.parseInt();
+  shoulderPosition = Serial.parseInt();
+  basePosition = Serial.parseInt();
+  manipulatorPosition = Serial.parseInt();
+  clawPosition = Serial.parseInt();
+  setMotors();
+  setArmPositions(controlType);
+  adjustSuspension();
 
-  if (Serial.read() == 's')
-  {
-    //Read from rover computer
-    elbowPosition = Serial.parseInt();
-    shoulderPosition = Serial.parseInt();
-    basePosition = Serial.parseInt();
-    manipulatorPosition = Serial.parseInt();
-    clawPosition = Serial.parseInt();
-    setArmPositions();
-    setMotors();
-    adjustSuspension();
-  }
 
   //setArmPositions() used to be here?
 }//END VOID LOOP
@@ -293,7 +298,8 @@ void setMotors() {
   leftMotor2 += LEFTMOTOR.read();
 
   LEFTMOTOR.clear();
-
+  
+  /*
   Serial.print("d");
   Serial.print((double)rightMotor1 / 100.0);
   Serial.print(",");
@@ -303,16 +309,74 @@ void setMotors() {
   Serial.print(",");
   Serial.print((double)leftMotor2 / 100.0);
   Serial.print(",");
+  */
 }
 
-void setArmPositions() {
+void setArmPositions(char controlType) {
   //elbowActuator.write(elbowPosition);      TODO            // sets the servo position according to the scaled value
-  //shoulderActuator.write(shoulderPosition);      TODO            // sets the servo position according to the scaled value
-  setActuatorSpeed(leftElbow, elbowPosition);
-  setActuatorSpeed(rightElbow, elbowPosition);
-  setActuatorSpeed(leftShoulder, shoulderPosition);
-  setActuatorSpeed(rightShoulder, shoulderPosition);
-
+  //shoulderActuator.write(shoulderPosition);      TODO            // sets the servo position according to the scaled valu
+  if(controlFlag && controlType == 's'  && (elbowPosition != 0 || shoulderPosition != 0)) {
+    controlFlag = false;
+  }
+  if(controlType == 's') {
+    if(!controlFlag) {
+      int currentElbow = analogReadMux(leftElbowPos);
+      int currentShoulder =  analogReadMux(rightShoulderPos);
+      Serial.println("Current: " + (String)currentElbow + " " + (String)currentShoulder);
+      Serial.flush();
+      
+      setActuatorSpeed(leftElbow, elbowPosition);
+      setActuatorSpeed(rightElbow, elbowPosition);
+      setActuatorSpeed(leftShoulder, shoulderPosition);
+      setActuatorSpeed(rightShoulder, shoulderPosition);
+    }
+    else {
+      int currentElbow = analogReadMux(leftElbowPos);
+      int currentShoulder =  analogReadMux(rightShoulderPos);
+      Serial.println("Expected: " + (String)elbowSetPosition + " " + (String)shoulderSetPosition);
+      Serial.println("Current: " + (String)currentElbow + " " + (String)currentShoulder);
+      Serial.flush();
+      int elbowDiff = abs(currentElbow - elbowSetPosition);
+      int shoulderDiff = abs(currentShoulder - shoulderSetPosition);
+      if(elbowDiff < 10 && shoulderDiff < 10) {
+        controlFlag = false;
+      }
+      else {
+        if(elbowDiff >= 10) {
+          if(currentElbow < elbowSetPosition) {
+            setActuatorSpeed(leftElbow, 127);
+            setActuatorSpeed(rightElbow, 127);
+          }
+          else if(currentElbow > elbowSetPosition) {
+            setActuatorSpeed(leftElbow, -127);
+            setActuatorSpeed(rightElbow, -127);
+          }  
+        }
+        else {
+          setActuatorSpeed(leftElbow, 0);
+        }
+        if(shoulderDiff >= 10) {
+          if(currentShoulder < shoulderSetPosition) {
+            setActuatorSpeed(leftShoulder, 127);
+            setActuatorSpeed(rightShoulder, 127);
+          }
+          else if(currentShoulder > shoulderSetPosition) {
+            setActuatorSpeed(leftShoulder, -127);
+            setActuatorSpeed(rightShoulder, -127);
+          }
+        }
+        else {
+        setActuatorSpeed(leftShoulder, 0);
+        setActuatorSpeed(rightShoulder, 0);  
+        }
+      }
+    }
+  }
+  else if(controlType == 'l') {
+    controlFlag = true;
+    elbowSetPosition = elbowPosition;
+    shoulderSetPosition = shoulderPosition;
+  }
   baseServo.write(basePosition);                  // sets the servo position according to the scaled value
   manipulatorServo.write(manipulatorPosition);
 
@@ -334,7 +398,7 @@ int analogReadMux(int pin) {
 void setActuatorSpeed(actuator act, int speed2) {
   int suspensionMax = 1023;//TODO
   int suspensionMin = 0;//TODO
-  int armMax = 1000;
+  int armMax = 900;
   int armMin = 20;
   //this should probably be a switch, but I always forget the syntax - Kyle
   if (act == leftRear) {
@@ -578,10 +642,12 @@ void adjustSuspension() {
       setActuatorSpeed(rightRear, 0);
     }
   }
+  /*
   Serial.print(pitch);//pitch
-    Serial.print(",");
-    Serial.print(roll);//roll
-    Serial.println(",");
-    Serial.flush();
+  Serial.print(",");
+  Serial.print(roll);//roll
+  Serial.println(",");
+  Serial.flush();
+  */  
 }
 
