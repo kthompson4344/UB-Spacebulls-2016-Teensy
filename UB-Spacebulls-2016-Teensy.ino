@@ -12,31 +12,36 @@
 #include "Adafruit_MCP23017.h"
 Adafruit_MCP23017 mcp;
 
+//Analog Multiplexor Select Pins
 #define muxA 2
 #define muxB 1
 #define muxC 0
 
+//Servo Pins
 #define camera 16
 #define wrist 2
 #define manip 11
 #define base 12
 
-
+//Serial Drive Motor Controllers
 #define LEFTMOTOR Serial3
 #define RIGHTMOTOR Serial1
+
 /* Set the delay between fresh Gyroscope and acclerometer samples */
 #define BNO055_SAMPLERATE_DELAY_MS (100)
 byte ADDRESS = 128;
 
-Servo baseServo;  // create servo object to control a servo
+// create servo objects to control a servo
+Servo baseServo;
 Servo manipulatorServo;
 Servo clawServo;
 
-int elbowPosition = 1000; // default positionts.
+// default arm actuator positionts (TODO)
+int elbowPosition = 1000;
 int shoulderPosition = 1000;
 
+// default servo positions
 int basePosition = 1500;
-
 int manipulatorPosition = 1500;
 int clawPosition = 1;
 
@@ -52,32 +57,13 @@ int shoulderSetPosition = 0;
 
 /*Create BNO055 object to access Gyro sensor reading*/
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
-/**************************************************************************/
-/*
-    Displays some basic information on this sensor from the unified
-    sensor API sensor_t type (see Adafruit_Sensor for more information)
-*/
-/**************************************************************************/
-void displaySensorDetails(void)
-{
-  sensor_t sensor;
-  bno.getSensor(&sensor);
-  Serial.println("------------------------------------");
-  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
-  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
-  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
-  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" xxx");
-  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" xxx");
-  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" xxx");
-  Serial.println("------------------------------------");
-  Serial.println("");
-  delay(500);
-}
+
 void setup()
 {
   delay(2000);
+
+  // Serial for communication with computer
   Serial.begin(115200);
-  Serial.println("Orientation Sensor Test"); Serial.println("");
 
   /* Initialise the BNO055 sensor */
   if (!bno.begin())
@@ -90,12 +76,11 @@ void setup()
   /* Display some basic information on this sensor */
   //displaySensorDetails();
 
-  mcp.begin();      // use default address 0
+  // Begin I/O expander (default address 0)
+  mcp.begin();
 
-  //IntervalTimer suspension;
-  //suspension.begin(adjustSuspension, 100000);
-  //Serial.println("Start Timer");
-  pinMode(13, OUTPUT);
+  //pinMode(13, OUTPUT);
+  // Define OUTPUTs
   pinMode(leftElbowPWM, OUTPUT);
   pinMode(rightElbowPWM, OUTPUT);
   pinMode(leftShoulderPWM, OUTPUT);
@@ -126,30 +111,28 @@ void setup()
 
   //TODO: Elbow and Shoulder to starting positions
 
-  baseServo.attach(12, 1100, 1900);  // attaches the servo on pin 9 to the servo object
+  baseServo.attach(base, 1100, 1900);  // attaches the servo on the base pin to the servo object, with limits of 1100-1900
   baseServo.write(1500);
 
-  manipulatorServo.attach(2, 600, 2400);  // attaches the servo on pin 9 to the servo object
-  clawServo.attach(16, 500, 1500);  // attaches the servo on pin 9 to the servo object
+  // attaches the servo on the base pin to the servo object, with limits of 600-2400
+  manipulatorServo.attach(2, 600, 2400);
+  // attaches the servo on the base pin to the servo object, with limits of 500-1500
+  clawServo.attach(16, 500, 1500);
 
+  // Begin Motor Controller Serial
   LEFTMOTOR.begin(38400);
   RIGHTMOTOR.begin(38400);
   delay(1000);
+
+  // Move suspension to the minimum position (TODO: move to a starting midpoint position)
+  // Move down
   setActuatorSpeed(leftFront, -100);
   setActuatorSpeed(rightFront, -100);
   setActuatorSpeed(leftRear, -100);
   setActuatorSpeed(rightRear, -100);
+  // What for 5 seconds to ensure it is at the minimum
   delay(5000);
-  setActuatorSpeed(leftFront, 0);
-  setActuatorSpeed(rightFront, 0);
-  setActuatorSpeed(leftRear, 0);
-  setActuatorSpeed(rightRear, 0);
-  delay(5000);
-  setActuatorSpeed(leftFront, 100);
-  setActuatorSpeed(rightFront, 100);
-  setActuatorSpeed(leftRear, 100);
-  setActuatorSpeed(rightRear, 100);
-  delay(2000);
+  // Stop
   setActuatorSpeed(leftFront, 0);
   setActuatorSpeed(rightFront, 0);
   setActuatorSpeed(leftRear, 0);
@@ -172,8 +155,8 @@ void loop()
       //shoulderActuator.write(1000); TODO // sets the servo position according to the scaled value
     }
   }
-  
-  
+
+
   char controlType = Serial.read();
   //Read from rover computer
   elbowPosition = Serial.parseInt();
@@ -298,7 +281,7 @@ void setMotors() {
   leftMotor2 += LEFTMOTOR.read();
 
   LEFTMOTOR.clear();
-  
+
   /*
   Serial.print("d");
   Serial.print((double)rightMotor1 / 100.0);
@@ -315,16 +298,16 @@ void setMotors() {
 void setArmPositions(char controlType) {
   //elbowActuator.write(elbowPosition);      TODO            // sets the servo position according to the scaled value
   //shoulderActuator.write(shoulderPosition);      TODO            // sets the servo position according to the scaled valu
-  if(controlFlag && controlType == 's'  && (elbowPosition != 0 || shoulderPosition != 0)) {
+  if (controlFlag && controlType == 's'  && (elbowPosition != 0 || shoulderPosition != 0)) {
     controlFlag = false;
   }
-  if(controlType == 's') {
-    if(!controlFlag) {
+  if (controlType == 's') {
+    if (!controlFlag) {
       int currentElbow = analogReadMux(leftElbowPos);
       int currentShoulder =  analogReadMux(rightShoulderPos);
       Serial.println("Current: " + (String)currentElbow + " " + (String)currentShoulder);
       Serial.flush();
-      
+
       setActuatorSpeed(leftElbow, elbowPosition);
       setActuatorSpeed(rightElbow, elbowPosition);
       setActuatorSpeed(leftShoulder, shoulderPosition);
@@ -338,41 +321,41 @@ void setArmPositions(char controlType) {
       Serial.flush();
       int elbowDiff = abs(currentElbow - elbowSetPosition);
       int shoulderDiff = abs(currentShoulder - shoulderSetPosition);
-      if(elbowDiff < 10 && shoulderDiff < 10) {
+      if (elbowDiff < 10 && shoulderDiff < 10) {
         controlFlag = false;
       }
       else {
-        if(elbowDiff >= 10) {
-          if(currentElbow < elbowSetPosition) {
+        if (elbowDiff >= 10) {
+          if (currentElbow < elbowSetPosition) {
             setActuatorSpeed(leftElbow, 127);
             setActuatorSpeed(rightElbow, 127);
           }
-          else if(currentElbow > elbowSetPosition) {
+          else if (currentElbow > elbowSetPosition) {
             setActuatorSpeed(leftElbow, -127);
             setActuatorSpeed(rightElbow, -127);
-          }  
+          }
         }
         else {
           setActuatorSpeed(leftElbow, 0);
         }
-        if(shoulderDiff >= 10) {
-          if(currentShoulder < shoulderSetPosition) {
+        if (shoulderDiff >= 10) {
+          if (currentShoulder < shoulderSetPosition) {
             setActuatorSpeed(leftShoulder, 127);
             setActuatorSpeed(rightShoulder, 127);
           }
-          else if(currentShoulder > shoulderSetPosition) {
+          else if (currentShoulder > shoulderSetPosition) {
             setActuatorSpeed(leftShoulder, -127);
             setActuatorSpeed(rightShoulder, -127);
           }
         }
         else {
-        setActuatorSpeed(leftShoulder, 0);
-        setActuatorSpeed(rightShoulder, 0);  
+          setActuatorSpeed(leftShoulder, 0);
+          setActuatorSpeed(rightShoulder, 0);
         }
       }
     }
   }
-  else if(controlType == 'l') {
+  else if (controlType == 'l') {
     controlFlag = true;
     elbowSetPosition = elbowPosition;
     shoulderSetPosition = shoulderPosition;
@@ -395,6 +378,22 @@ int analogReadMux(int pin) {
   return analogRead(A14);
 }
 
+
+/* This function controls the actuators for the arm and for the suspension, because they both work in the same way.
+  The actuator names are part of the actuator enum, and are as follows:
+  Suspension:
+    leftFront
+    leftRear
+    rightFront
+    rightRear
+  Arm:
+    leftElbow
+    rightElbow
+    leftShoulder
+    rightShoulder
+
+  The speed is a value between -255 and +255. The larger the magnitude the faster it moves. Negative values retract, positive extend, 0 is stopped.
+*/
 void setActuatorSpeed(actuator act, int speed2) {
   int suspensionMax = 1023;//TODO
   int suspensionMin = 0;//TODO
@@ -648,6 +647,28 @@ void adjustSuspension() {
   Serial.print(roll);//roll
   Serial.println(",");
   Serial.flush();
-  */  
+  */
+}
+
+/**************************************************************************/
+/*
+    Displays some basic information on this sensor from the unified
+    sensor API sensor_t type (see Adafruit_Sensor for more information)
+*/
+/**************************************************************************/
+void displaySensorDetails(void)
+{
+  sensor_t sensor;
+  bno.getSensor(&sensor);
+  Serial.println("------------------------------------");
+  Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+  Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+  Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+  Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" xxx");
+  Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" xxx");
+  Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" xxx");
+  Serial.println("------------------------------------");
+  Serial.println("");
+  delay(500);
 }
 
