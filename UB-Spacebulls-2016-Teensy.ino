@@ -23,9 +23,8 @@ Adafruit_MCP23017 mcp;
 #define manip 11
 #define base 12
 
-//Serial Drive Motor Controllers
-#define LEFTMOTOR Serial3
-#define RIGHTMOTOR Serial1
+//Brushless Motors
+Servo lfESC;
 
 /* Set the delay between fresh Gyroscope and acclerometer samples */
 #define BNO055_SAMPLERATE_DELAY_MS (100)
@@ -79,7 +78,8 @@ void setup()
   // Begin I/O expander (default address 0)
   mcp.begin();
 
-  //pinMode(13, OUTPUT);
+  pinMode(13, OUTPUT);
+  digitalWrite(13, LOW);
   // Define OUTPUTs
   pinMode(leftElbowPWM, OUTPUT);
   pinMode(rightElbowPWM, OUTPUT);
@@ -115,14 +115,18 @@ void setup()
   baseServo.write(1500);
 
   // attaches the servo on the base pin to the servo object, with limits of 600-2400
-  manipulatorServo.attach(2, 600, 2400);
+  manipulatorServo.attach(wrist, 600, 2400);
   // attaches the servo on the base pin to the servo object, with limits of 500-1500
   clawServo.attach(16, 500, 1500);
 
-  // Begin Motor Controller Serial
-  LEFTMOTOR.begin(38400);
-  RIGHTMOTOR.begin(38400);
-  delay(1000);
+  //attach ESC control pins to servo objects
+  lfESC.attach(0);
+//  rfESC.attach();
+
+
+
+  delay(100);
+  lfESC.writeMicroseconds(0);  
 
   // Move suspension to the minimum position (TODO: move to a starting midpoint position)
   // Move down
@@ -147,7 +151,7 @@ void loop()
 
   while (Serial.available() < 1) {//waits for computer to start TODO: try in setup
     if (milliSeconds <= millis()) {
-      motorsOff();
+      //motorsOff();
     }
 
     if (armSeconds <= millis()) {
@@ -178,124 +182,27 @@ int checksum(int one, int two, int three) {
 }
 
 void motorsOff() {
-  RIGHTMOTOR.write(ADDRESS);
-  RIGHTMOTOR.write(0); // command
-  RIGHTMOTOR.write(0);
-  RIGHTMOTOR.write(checksum(ADDRESS, 0, 0));
-
-  RIGHTMOTOR.write(ADDRESS);
-  RIGHTMOTOR.write(4); // command
-  RIGHTMOTOR.write(0);
-  RIGHTMOTOR.write(checksum(ADDRESS, 4, 0));
-
-  LEFTMOTOR.write(ADDRESS);
-  LEFTMOTOR.write(0); // command
-  LEFTMOTOR.write(0);
-  LEFTMOTOR.write(checksum(ADDRESS, 0, 0));
-
-  LEFTMOTOR.write(ADDRESS);
-  LEFTMOTOR.write(4); // command
-  LEFTMOTOR.write(0);
-  LEFTMOTOR.write(checksum(ADDRESS, 4, 0));
 }
 
 void setMotors() {
+  int leftValue;
+  int rightValue;
   motorRightSpeed = Serial.parseInt(); // -127 - 127
-
-  byte command;
-  byte command2;
-
-  if (motorRightSpeed >= 127) {
-    command = 1;
-    command2 = 5;
-    motorRightSpeed -= 127;
-  }
-  else {
-    command = 0;
-    command2 = 4;
-    motorRightSpeed = 127 - motorRightSpeed;
-  }
-
-  RIGHTMOTOR.write(ADDRESS);
-  RIGHTMOTOR.write(command); // command
-  RIGHTMOTOR.write(abs(motorRightSpeed));
-  RIGHTMOTOR.write(checksum(ADDRESS, command, abs(motorRightSpeed)));
-
-  RIGHTMOTOR.write(ADDRESS);
-  RIGHTMOTOR.write(command2); // command
-  RIGHTMOTOR.write(abs(motorRightSpeed));
-  RIGHTMOTOR.write(checksum(ADDRESS, command2, abs(motorRightSpeed)));
-
-  RIGHTMOTOR.write(ADDRESS);
-  RIGHTMOTOR.write(49); // Read Motor Currents
-
-  int16_t rightMotor1;
-  int16_t rightMotor2;
-
-  rightMotor1 = 0;
-  rightMotor2 = 0;
-
-  rightMotor1 += RIGHTMOTOR.read();
-  rightMotor1  = rightMotor1 << 8;
-  rightMotor1 += RIGHTMOTOR.read();
-  rightMotor2 += RIGHTMOTOR.read();
-  rightMotor2  = rightMotor2 << 8;
-  rightMotor2 += RIGHTMOTOR.read();
-
-  RIGHTMOTOR.clear();
-
   motorLeftSpeed = Serial.parseInt();
 
-  if (motorLeftSpeed >= 127) {
-    command = 1;
-    command2 = 5;
-    motorLeftSpeed -= 127;
+  rightValue = map(motorRightSpeed, 0, 254, 700, 2000);
+  leftValue = map(motorLeftSpeed, 0, 254, 700, 2000);
+  if (leftValue == 1350) {
+    digitalWriteFast(13, HIGH);
   }
-  else {
-    command = 0;
-    command2 = 4;
-    motorLeftSpeed = 127 - motorLeftSpeed;
-  }
-
-  LEFTMOTOR.write(ADDRESS);
-  LEFTMOTOR.write(command); // command
-  LEFTMOTOR.write(abs(motorLeftSpeed));
-  LEFTMOTOR.write(checksum(ADDRESS, command, abs(motorLeftSpeed)));
-
-  LEFTMOTOR.write(ADDRESS);
-  LEFTMOTOR.write(command2); // command
-  LEFTMOTOR.write(abs(motorLeftSpeed));
-  LEFTMOTOR.write(checksum(ADDRESS, command2, abs(motorLeftSpeed)));
-
-  LEFTMOTOR.write(ADDRESS);
-  LEFTMOTOR.write(49); // Read Motor Currents
-
-  int16_t leftMotor1 = 0;
-  int16_t leftMotor2 = 0;
-
-  leftMotor1 += LEFTMOTOR.read();
-  leftMotor1  = leftMotor1 << 8;
-  leftMotor1 += LEFTMOTOR.read();
-  leftMotor2 += LEFTMOTOR.read();
-  leftMotor2  = leftMotor2 << 8;
-  leftMotor2 += LEFTMOTOR.read();
-
-  LEFTMOTOR.clear();
-
-  /*
-  Serial.print("d");
-  Serial.print((double)rightMotor1 / 100.0);
-  Serial.print(",");
-  Serial.print((double)rightMotor2 / 100.0);
-  Serial.print(",");
-  Serial.print((double)leftMotor1 / 100.0);
-  Serial.print(",");
-  Serial.print((double)leftMotor2 / 100.0);
-  Serial.print(",");
-  */
+  lfESC.writeMicroseconds(leftValue);
+  
+  //TODO other motors
 }
 
 void setArmPositions(char controlType) {
+  static int prevManipulatorPosition = 0;
+  static int prevClawPosition = 0;
   //elbowActuator.write(elbowPosition);      TODO            // sets the servo position according to the scaled value
   //shoulderActuator.write(shoulderPosition);      TODO            // sets the servo position according to the scaled valu
   if (controlFlag && controlType == 's'  && (elbowPosition != 0 || shoulderPosition != 0)) {
@@ -361,14 +268,19 @@ void setArmPositions(char controlType) {
     shoulderSetPosition = shoulderPosition;
   }
   baseServo.write(basePosition);                  // sets the servo position according to the scaled value
-  manipulatorServo.write(manipulatorPosition);
-
-  if (clawPosition == 1) {
-    clawServo.write(1250); // 940
+  if (manipulatorPosition != prevManipulatorPosition) {
+    manipulatorServo.write(manipulatorPosition);
   }
-  else {
-    clawServo.write(1550); // 940
+  prevManipulatorPosition = manipulatorPosition;
+  if (clawPosition != prevClawPosition) {
+    if (clawPosition == 1) {
+      clawServo.write(1250); // 940
+    }
+    else {
+      clawServo.write(1550); // 940
+    }
   }
+  prevClawPosition = clawPosition;
 }
 
 int analogReadMux(int pin) {
