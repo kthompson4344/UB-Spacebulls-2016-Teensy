@@ -1,9 +1,7 @@
-/*
- Controlling a servo position using a potentiometer (variable resistor)
- */
 
 #include <Servo.h>
 #include <SPI.h>
+//#include <i2c_t3.h>
 #include <Wire.h>
 #include "Adafruit_Sensor.h"
 #include "Adafruit_BNO055.h"
@@ -11,29 +9,33 @@
 #include "Actuators.h"
 #include "Adafruit_MCP23017.h"
 Adafruit_MCP23017 mcp;
-
+//#include <i2c_t3.h>
 //Analog Multiplexor Select Pins
 #define muxA 2
 #define muxB 1
 #define muxC 0
 
 //Servo Pins
-#define camera 16
+#define camera 17
 #define wrist 2
 #define manip 11
 #define base 12
 
 //Brushless Motors
 Servo lfESC;
+Servo rfESC;
+Servo lrESC;
+Servo rrESC;
 
 /* Set the delay between fresh Gyroscope and acclerometer samples */
-#define BNO055_SAMPLERATE_DELAY_MS (100)
+#define BNO055_SAMPLERATE_DELAY_MS (10)//USED TO BE 100
 byte ADDRESS = 128;
 
 // create servo objects to control a servo
 Servo baseServo;
 Servo manipulatorServo;
-Servo clawServo;
+Servo wristServo;
+Servo mastServo;
 
 // default arm actuator positionts (TODO)
 int elbowPosition = 1000;
@@ -59,43 +61,33 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 
 void setup()
 {
-  delay(2000);
-
   // Serial for communication with computer
   Serial.begin(115200);
-
+  delay(2000);
   /* Initialise the BNO055 sensor */
   if (!bno.begin())
   {
     /* There was a problem detecting the BNO055 ... check your connections */
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-    while (1);
   }
-
-  /* Display some basic information on this sensor */
-  //displaySensorDetails();
+  bno.setExtCrystalUse(true);
+  delay(1000);
 
   // Begin I/O expander (default address 0)
-  mcp.begin();
-
+  mcp.begin();//TODO THIS FREEZES SOMETIMES (PUT 10K PULLUP ON RESET)
+//  analogReadResolution(12);
   pinMode(13, OUTPUT);
   digitalWrite(13, LOW);
   // Define OUTPUTs
-  pinMode(leftElbowPWM, OUTPUT);
-  pinMode(rightElbowPWM, OUTPUT);
-  pinMode(leftShoulderPWM, OUTPUT);
-  pinMode(rightShoulderPWM, OUTPUT);
-
-  mcp.pinMode(leftElbowDir, OUTPUT);
-  mcp.pinMode(rightElbowDir, OUTPUT);
-  mcp.pinMode(leftShoulderDir, OUTPUT);
-  mcp.pinMode(rightShoulderDir, OUTPUT);
+  pinMode(elbowPWM, OUTPUT);
+  pinMode(shoulderPWM, OUTPUT);
+  mcp.pinMode(elbowDir, OUTPUT);
+  mcp.pinMode(shoulderDir, OUTPUT);
 
   pinMode(leftRearPWM, OUTPUT);
   pinMode(rightRearPWM, OUTPUT);
   pinMode(leftFrontPWM, OUTPUT);
   pinMode(rightFrontPWM, OUTPUT);
-
   mcp.pinMode(leftRearIN1, OUTPUT);
   mcp.pinMode(leftRearIN2, OUTPUT);
   mcp.pinMode(rightRearIN1, OUTPUT);
@@ -108,25 +100,37 @@ void setup()
   mcp.pinMode(muxA, OUTPUT);
   mcp.pinMode(muxB, OUTPUT);
   mcp.pinMode(muxC, OUTPUT);
-
   //TODO: Elbow and Shoulder to starting positions
 
   baseServo.attach(base, 1100, 1900);  // attaches the servo on the base pin to the servo object, with limits of 1100-1900
   baseServo.write(1500);
 
   // attaches the servo on the base pin to the servo object, with limits of 600-2400
-  manipulatorServo.attach(wrist, 600, 2400);
+  wristServo.attach(wrist, 600, 2400);
   // attaches the servo on the base pin to the servo object, with limits of 500-1500
-  clawServo.attach(16, 500, 1500);
+  manipulatorServo.attach(manip, 500, 1500);
 
+//  mastServo.attach(camera, ,);
+
+//  while(1) {
+//    printAnalog();
+//    printAngle();
+//    testServos();
+//    testActuators(); 
+//setActuatorSpeed(shoulder, 50);
+//  delay(50);
+//  }
   //attach ESC control pins to servo objects
-  lfESC.attach(0);
-//  rfESC.attach();
-
-
+  lfESC.attach(1);
+  rfESC.attach(0);
+  lrESC.attach(8);
+  rrESC.attach(7);
 
   delay(100);
-  lfESC.writeMicroseconds(0);  
+  lfESC.writeMicroseconds(0);
+  rfESC.writeMicroseconds(0); 
+  lrESC.writeMicroseconds(0); 
+  rrESC.writeMicroseconds(0); 
 
   // Move suspension to the minimum position (TODO: move to a starting midpoint position)
   // Move down
@@ -135,12 +139,17 @@ void setup()
   setActuatorSpeed(leftRear, -100);
   setActuatorSpeed(rightRear, -100);
   // What for 5 seconds to ensure it is at the minimum
-  delay(5000);
+  delay(3000);
   // Stop
   setActuatorSpeed(leftFront, 0);
   setActuatorSpeed(rightFront, 0);
   setActuatorSpeed(leftRear, 0);
   setActuatorSpeed(rightRear, 0);
+//  while(1) {
+//    adjustSuspension();
+//    delay(10);
+//  }
+  
 }
 
 void loop()
@@ -172,17 +181,8 @@ void loop()
   setArmPositions(controlType);
   adjustSuspension();
 
-
-  //setArmPositions() used to be here?
 }//END VOID LOOP
 
-
-int checksum(int one, int two, int three) {
-  return (one + two + three) & 0x7F;
-}
-
-void motorsOff() {
-}
 
 void setMotors() {
   int leftValue;
@@ -196,6 +196,9 @@ void setMotors() {
     digitalWriteFast(13, HIGH);
   }
   lfESC.writeMicroseconds(leftValue);
+  rfESC.writeMicroseconds(rightValue);
+  lrESC.writeMicroseconds(leftValue);
+  rrESC.writeMicroseconds(rightValue);
   
   //TODO other motors
 }
@@ -210,19 +213,17 @@ void setArmPositions(char controlType) {
   }
   if (controlType == 's') {
     if (!controlFlag) {
-      int currentElbow = analogReadMux(leftElbowPos);
-      int currentShoulder =  analogReadMux(rightShoulderPos);
+      int currentElbow = analogReadMux(elbowPos);
+      int currentShoulder =  analogReadMux(shoulderPos);
       Serial.println("Current: " + (String)currentElbow + " " + (String)currentShoulder);
       Serial.flush();
 
-      setActuatorSpeed(leftElbow, elbowPosition);
-      setActuatorSpeed(rightElbow, elbowPosition);
-      setActuatorSpeed(leftShoulder, shoulderPosition);
-      setActuatorSpeed(rightShoulder, shoulderPosition);
+      setActuatorSpeed(elbow, elbowPosition);
+      setActuatorSpeed(shoulder, shoulderPosition);
     }
     else {
-      int currentElbow = analogReadMux(leftElbowPos);
-      int currentShoulder =  analogReadMux(rightShoulderPos);
+      int currentElbow = analogReadMux(elbowPos);
+      int currentShoulder =  analogReadMux(shoulderPos);
       Serial.println("Expected: " + (String)elbowSetPosition + " " + (String)shoulderSetPosition);
       Serial.println("Current: " + (String)currentElbow + " " + (String)currentShoulder);
       Serial.flush();
@@ -234,30 +235,25 @@ void setArmPositions(char controlType) {
       else {
         if (elbowDiff >= 10) {
           if (currentElbow < elbowSetPosition) {
-            setActuatorSpeed(leftElbow, 127);
-            setActuatorSpeed(rightElbow, 127);
+            setActuatorSpeed(elbow, 127);
           }
           else if (currentElbow > elbowSetPosition) {
-            setActuatorSpeed(leftElbow, -127);
-            setActuatorSpeed(rightElbow, -127);
+            setActuatorSpeed(elbow, -127);
           }
         }
         else {
-          setActuatorSpeed(leftElbow, 0);
+          setActuatorSpeed(elbow, 0);
         }
         if (shoulderDiff >= 10) {
           if (currentShoulder < shoulderSetPosition) {
-            setActuatorSpeed(leftShoulder, 127);
-            setActuatorSpeed(rightShoulder, 127);
+            setActuatorSpeed(shoulder, 127);
           }
           else if (currentShoulder > shoulderSetPosition) {
-            setActuatorSpeed(leftShoulder, -127);
-            setActuatorSpeed(rightShoulder, -127);
+            setActuatorSpeed(shoulder, -127);
           }
         }
         else {
-          setActuatorSpeed(leftShoulder, 0);
-          setActuatorSpeed(rightShoulder, 0);
+          setActuatorSpeed(shoulder, 0);
         }
       }
     }
@@ -269,15 +265,15 @@ void setArmPositions(char controlType) {
   }
   baseServo.write(basePosition);                  // sets the servo position according to the scaled value
   if (manipulatorPosition != prevManipulatorPosition) {
-    manipulatorServo.write(manipulatorPosition);
+    wristServo.write(manipulatorPosition);
   }
   prevManipulatorPosition = manipulatorPosition;
   if (clawPosition != prevClawPosition) {
     if (clawPosition == 1) {
-      clawServo.write(1250); // 940
+      manipulatorServo.write(1250); // 940
     }
     else {
-      clawServo.write(1550); // 940
+      manipulatorServo.write(1550); // 940
     }
   }
   prevClawPosition = clawPosition;
@@ -358,18 +354,17 @@ void setActuatorSpeed(actuator act, int speed2) {
   }
   else if (act == leftFront) {
     if (speed2 > 0) {
-
       //if (analogReadMux(leftFrontPos) < suspensionMax) {
       analogWrite(leftFrontPWM, speed2);
-      mcp.digitalWrite(leftFrontIN1, LOW);
-      mcp.digitalWrite(leftFrontIN2, HIGH);
+      mcp.digitalWrite(leftFrontIN1, HIGH);
+      mcp.digitalWrite(leftFrontIN2, LOW);
       //}
     }
     else if (speed2 < 0) {
       //if (analogReadMux(leftFrontPos) > suspensionMin) {
       analogWrite(leftFrontPWM, -speed2);
-      mcp.digitalWrite(leftFrontIN1, HIGH);
-      mcp.digitalWrite(leftFrontIN2, LOW);
+      mcp.digitalWrite(leftFrontIN1, LOW);
+      mcp.digitalWrite(leftFrontIN2, HIGH);
       //}
     }
     else {
@@ -400,159 +395,118 @@ void setActuatorSpeed(actuator act, int speed2) {
       mcp.digitalWrite(rightFrontIN2, LOW);
     }
   }
-  else if (act == leftElbow) {
+  else if (act == elbow) {
     if (speed2 >= 0) {
-      if (analogReadMux(leftElbowPos) < armMax) {
-        analogWrite(leftElbowPWM, speed2);
-        mcp.digitalWrite(leftElbowDir, LOW);
+      if (analogReadMux(elbowPos) < armMax) {
+        analogWrite(elbowPWM, speed2);
+        mcp.digitalWrite(elbowDir, LOW);
       }
       else {
-        analogWrite(leftElbowPWM, 0);
-        mcp.digitalWrite(leftElbowDir, LOW);
+        analogWrite(elbowPWM, 0);
+        mcp.digitalWrite(elbowDir, LOW);
       }
     }
     else if (speed2 < 0) {
-      if (analogReadMux(leftElbowPos) > armMin) {
-        analogWrite(leftElbowPWM, -speed2);
-        mcp.digitalWrite(leftElbowDir, HIGH);
+      if (analogReadMux(elbowPos) > armMin) {
+        analogWrite(elbowPWM, -speed2);
+        mcp.digitalWrite(elbowDir, HIGH);
       }
       else {
-        analogWrite(leftElbowPWM, 0);
-        mcp.digitalWrite(leftElbowDir, HIGH);
+        analogWrite(elbowPWM, 0);
+        mcp.digitalWrite(elbowDir, HIGH);
       }
     }
   }
-  else if (act == rightElbow) {
+  else if (act == shoulder) {
     if (speed2 >= 0) {
-      if (analogReadMux(rightElbowPos) < armMax) {
-        analogWrite(rightElbowPWM, speed2);
-        mcp.digitalWrite(rightElbowDir, LOW);
+      if (analogReadMux(shoulderPos) < armMax) {
+        analogWrite(shoulderPWM, speed2);
+        mcp.digitalWrite(shoulderDir, LOW);
       }
       else {
-        analogWrite(rightElbowPWM, 0);
-        mcp.digitalWrite(rightElbowDir, LOW);
+        analogWrite(shoulderPWM, 0);
+        mcp.digitalWrite(shoulderDir, LOW);
       }
     }
     else if (speed2 < 0) {
-      if (analogReadMux(rightElbowPos) > armMin) {
-        analogWrite(rightElbowPWM, -speed2);
-        mcp.digitalWrite(rightElbowDir, HIGH);
+      if (analogReadMux(shoulderPos) > armMin) {
+        analogWrite(shoulderPWM, -speed2);
+        mcp.digitalWrite(shoulderDir, HIGH);
       }
       else {
-        analogWrite(rightElbowPWM, 0);
-        mcp.digitalWrite(rightElbowDir, HIGH);
+        analogWrite(shoulderPWM, 0);
+        mcp.digitalWrite(shoulderDir, HIGH);
       }
     }
   }
-  else if (act == leftShoulder) {
-    if (speed2 >= 0) {
-      if (analogReadMux(leftShoulderPos) < armMax) {
-        analogWrite(leftShoulderPWM, speed2);
-        mcp.digitalWrite(leftShoulderDir, LOW);
-      }
-      else {
-        analogWrite(leftShoulderPWM, 0);
-        mcp.digitalWrite(leftShoulderDir, LOW);
-      }
-    }
-    else if (speed2 < 0) {
-      if (analogReadMux(leftShoulderPos) > armMin) {
-        analogWrite(leftShoulderPWM, -speed2);
-        mcp.digitalWrite(leftShoulderDir, HIGH);
-      }
-      else {
-        analogWrite(leftShoulderPWM, 0);
-        mcp.digitalWrite(leftShoulderDir, HIGH);
-      }
-    }
-  }
-  else if (act == rightShoulder) {
-    if (speed2 >= 0) {
-      if (analogReadMux(rightShoulderPos) < armMax) {
-        analogWrite(rightShoulderPWM, speed2);
-        mcp.digitalWrite(rightShoulderDir, LOW);
-      }
-      else {
-        analogWrite(rightShoulderPWM, 0);
-        mcp.digitalWrite(rightShoulderDir, LOW);
-      }
-    }
-    else if (speed2 < 0) {
-      if (analogReadMux(rightShoulderPos) > armMin) {
-        analogWrite(rightShoulderPWM, -speed2);
-        mcp.digitalWrite(rightShoulderDir, HIGH);
-      }
-      else {
-        analogWrite(rightShoulderPWM, 0);
-        mcp.digitalWrite(rightShoulderDir, HIGH);
-      }
-    }
-  }
-
 }
 
 void adjustSuspension() {
-  float errorP;
-  int totalError;
-  int Kp = 50;
-  bool pitchCorrect;
-  float levelValuePitch = 6.6;
-  float levelValueRoll = 3.3;
+  float pitchErrorP;
+  float rollErrorP;
+  int pitchTotalError;
+  int rollTotalError;
   float pitch;
   float roll;
+  int LFError;
+  int RFError;
+  int LRError;
+  int RRError;
+  int Kp = 40;
+  bool pitchCorrect = 0;
+  float levelValuePitch = 2.94;
+  float levelValueRoll = .88;
   //Serial.println("beginning");
   sensors_event_t event;
   bno.getEvent(&event);
-  pitchCorrect = clawPosition;
-  pitch = event.orientation.y;
+//  pitchCorrect = clawPosition;
+  pitch = -event.orientation.y;
   roll = event.orientation.z;
-  if (pitchCorrect == 1) {
-    errorP = pitch - levelValuePitch;
-    totalError = Kp * errorP;
-    if (totalError >= 255) {
-      totalError = 255;
-    }
-    if (totalError <= -255) {
-      totalError = -255;
-    }
-    //Serial.println(totalError);
-    if (totalError >= 40 || totalError <= -40) {
-      setActuatorSpeed(leftFront, totalError);
-      setActuatorSpeed(rightFront, totalError);
-      setActuatorSpeed(leftRear, -totalError);
-      setActuatorSpeed(rightRear, -totalError);
-    }
-    else {
-      setActuatorSpeed(leftFront, 0);
-      setActuatorSpeed(rightFront, 0);
-      setActuatorSpeed(leftRear, 0);
-      setActuatorSpeed(rightRear, 0);
-    }
+  if (roll < 0) {
+    roll = -(180 + roll);
   }
   else {
-    //errorP = levelValueRoll - event.orientation.z;
-    errorP = roll - levelValueRoll;
-    totalError = Kp * errorP;
-    if (totalError >= 255) {
-      totalError = 255;
-    }
-    if (totalError <= -255) {
-      totalError = -255;
-    }
-    //Serial.println(totalError);
-    if (totalError >= 45 || totalError <= -45) {
-      setActuatorSpeed(leftFront, -totalError);
-      setActuatorSpeed(rightFront, totalError);
-      setActuatorSpeed(leftRear, -totalError);
-      setActuatorSpeed(rightRear, totalError);
-    }
-    else {
-      setActuatorSpeed(leftFront, 0);
-      setActuatorSpeed(rightFront, 0);
-      setActuatorSpeed(leftRear, 0);
-      setActuatorSpeed(rightRear, 0);
-    }
+    roll = 180 - roll;
   }
+  pitchErrorP = pitch - levelValuePitch;
+  rollErrorP = roll - levelValueRoll;
+//  Serial.println(pitchErrorP);
+  LFError = Kp * (pitchErrorP - rollErrorP);
+  RFError = Kp * (pitchErrorP + rollErrorP);
+  LRError = Kp * (-pitchErrorP - rollErrorP);
+  RRError = Kp * (-pitchErrorP + rollErrorP);
+
+  
+  if (LFError >= 45 || LFError <= -45) {
+//    LFError *= Kp;
+  }
+  else {
+    LFError = 0;
+  }
+  if (RFError >= 45 || RFError <= -45) {
+//    RFError *= Kp;
+  }
+  else {
+    RFError = 0;
+  }
+  if (LRError >= 45 || LRError <= -45) {
+//    LRError *= Kp;
+  }
+  else {
+    LRError = 0;
+  }
+  if (RRError >= 45 || RRError <= -45) {
+//    RRError = RRError *= Kp;
+  }
+  else {
+    RRError = 0;
+  }
+//  Serial.print("LF: "); Serial.print(LFError); Serial.print("  "); Serial.print("RF: "); Serial.println(RFError);
+//  Serial.print("LR: "); Serial.print(LRError); Serial.print("  "); Serial.print("RR: "); Serial.println(RRError);
+  setActuatorSpeed(leftFront, LFError);
+  setActuatorSpeed(rightFront, RFError);
+  setActuatorSpeed(leftRear, LRError);
+  setActuatorSpeed(rightRear, RRError);
   /*
   Serial.print(pitch);//pitch
   Serial.print(",");

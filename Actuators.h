@@ -4,55 +4,36 @@ enum actuator{
   leftRear = 1,
   rightFront = 2,
   rightRear = 3,
-  leftElbow = 4,
-  rightElbow = 5,
-  leftShoulder = 6,
-  rightShoulder = 7
+  elbow = 4,
+  shoulder = 5,
 };
 
-#define leftElbowPWM 21
-#define rightElbowPWM 20
-#define leftShoulderPWM 5
-#define rightShoulderPWM 6
+#define elbowPWM 22
+#define shoulderPWM 23
 
-#define leftElbowDir 7
-#define rightElbowDir 6
-#define leftShoulderDir 5
-#define rightShoulderDir 4
+#define elbowDir 6
+#define shoulderDir 7
 
-#define leftElbowPos 2
-#define rightElbowPos 1
-#define leftShoulderPos 0
-#define rightShoulderPos 3
+#define elbowPos 0
+#define shoulderPos 1
 
-#define leftRearPWM 23
-#define rightRearPWM 9
-#define leftFrontPWM 22
-#define rightFrontPWM 10
+#define rightRearPWM 6
+#define rightRearIN1 10
+#define rightRearIN2 11
 
-#define leftRearIN1 10
-#define leftRearIN2 11
-#define rightRearIN1 12
-#define rightRearIN2 13
-#define leftFrontIN1 8
-#define leftFrontIN2 9
-#define rightFrontIN1 14
-#define rightFrontIN2 15
+#define leftRearPWM 9
+#define leftRearIN1 12
+#define leftRearIN2 13
 
-#define leftRearPos 4
-#define rightRearPos 6
-#define leftFrontPos 5
-#define rightFrontPos 7
+#define rightFrontPWM 5
+#define rightFrontIN1 8
+#define rightFrontIN2 9
 
-//RF
-//29
-//915
-//RR
-//47
-//913
-//LR
-//47
-//921
-//LF
-//
-//
+#define leftFrontPWM 10
+#define leftFrontIN1 15
+#define leftFrontIN2 14
+
+#define leftRearPos 5
+#define rightRearPos 7
+#define leftFrontPos 6
+#define rightFrontPos 4
