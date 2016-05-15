@@ -37,23 +37,24 @@ void testActuators() {
     previousMillis = currentMillis;
     if (ledState == LOW) {
       ledState = HIGH;
-      setActuatorSpeed(leftFront, 100);
-      setActuatorSpeed(rightFront, 100);
-      setActuatorSpeed(leftRear, 100);
-      setActuatorSpeed(rightRear, 100);
-//      setActuatorSpeed(shoulder, 200);
-//      setActuatorSpeed(elbow, 100);
+//      setActuatorSpeed(leftFront, 100);
+//      setActuatorSpeed(rightFront, 100);
+//      setActuatorSpeed(leftRear, 100);
+//      setActuatorSpeed(rightRear, 100);
+      setActuatorSpeed(shoulder, -100);
+      setActuatorSpeed(elbow, -100);
     }
     else {
       ledState = LOW;
-      setActuatorSpeed(leftFront, -100);
-      setActuatorSpeed(rightFront, -100);
-      setActuatorSpeed(leftRear, -100);
-      setActuatorSpeed(rightRear, -100);
-//      setActuatorSpeed(shoulder, -200);
-//      setActuatorSpeed(elbow, -100);
+//      setActuatorSpeed(leftFront, -50);
+//      setActuatorSpeed(rightFront, -50);
+//      setActuatorSpeed(leftRear, -50);
+//      setActuatorSpeed(rightRear, -50);
+      setActuatorSpeed(shoulder, - 100);
+      setActuatorSpeed(elbow, -100);
     }
   }
+  Serial.println(analogReadMux(leftRearPos));
 }
 
 void printAngle() {

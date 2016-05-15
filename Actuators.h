@@ -1,3 +1,19 @@
+/*
+ * Backup rover
+ * 
+ * min:
+ * leftRear: 92
+ * leftFront: 61
+ * rightRear: 79
+ * rightFront: 33
+ * 
+ * max:
+ * leftRear: 977
+ * leftFront: 912
+ * rightRear: 942
+ * rightFront: 929
+ */
+
 
 enum actuator{
   leftFront = 0,
