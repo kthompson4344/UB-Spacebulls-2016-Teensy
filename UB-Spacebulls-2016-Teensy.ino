@@ -150,18 +150,18 @@ void setup()
 //  setActuatorSpeed(rightRear, 0);
   delay(2000);
 //  //set suspension to mid height
-  Serial.println("Starting");
+//  Serial.println("Starting");
   setSuspensionPositions(map(50,0,100,33,929), map(50,0,100,79,942), map(50,0,100,92,977), map(50,0,100,61,912), 80);
   setActuatorSpeed(leftFront, 0);
   setActuatorSpeed(rightFront, 0);
   setActuatorSpeed(leftRear, 0);
   setActuatorSpeed(rightRear, 0);
-  Serial.println("Done!");
+//  Serial.println("Done!");
 ////    
-  Serial.print("leftRear: ");Serial.println(analogReadMux(leftRearPos));
-  Serial.print("leftFront: ");Serial.println(analogReadMux(leftFrontPos));
-  Serial.print("rightRear: ");Serial.println(analogReadMux(rightRearPos));
-  Serial.print("rightFront: ");Serial.println(analogReadMux(rightFrontPos));
+//  Serial.print("leftRear: ");Serial.println(analogReadMux(leftRearPos));
+//  Serial.print("leftFront: ");Serial.println(analogReadMux(leftFrontPos));
+//  Serial.print("rightRear: ");Serial.println(analogReadMux(rightRearPos));
+//  Serial.print("rightFront: ");Serial.println(analogReadMux(rightFrontPos));
 //  Serial.print("shoulder: ");Serial.println(analogReadMux(shoulderPos));
 //  Serial.print("elbow: ");Serial.println(analogReadMux(elbowPos));
 
@@ -210,6 +210,9 @@ void loop()
 //      //shoulderActuator.write(1000); TODO // sets the servo position according to the scaled value
 //    }
   }
+
+  //actuators
+  //
   
 //  char startChar = Serial.read();
   char controlType = Serial.read();

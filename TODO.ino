@@ -1,5 +1,2 @@
-//min and max values for actuators
-//remove warnings
-//suspension code
-//current sensing
-//
+//prints for arm stuff? ask mitch
+//suspension code bugs
