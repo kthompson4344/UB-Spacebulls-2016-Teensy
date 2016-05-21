@@ -1,2 +1,1 @@
-//prints for arm stuff? ask mitch
-//suspension code bugs
+//suspension code bugs (try it on a timed interval, not based on serial)
