@@ -23,6 +23,9 @@ Adafruit_MCP23017 mcp;
 #define tiltL 16
 #define mast 14
 
+const int manipClose = 125;
+const int manipOpen = 75;
+
 //Brushless Motors
 Servo lfESC;
 Servo rfESC;
@@ -97,15 +100,20 @@ void setup()
   mcp.pinMode(muxA, OUTPUT);
   mcp.pinMode(muxB, OUTPUT);
   mcp.pinMode(muxC, OUTPUT);
-
+  
+  wristServo.attach(wrist, 600, 2400);
+//  for (int i = 0; i < 
+  wristServo.write(1200);
+  delay(2000);
+  
   baseServo.attach(base, 1100, 1900);  // attaches the servo on the base pin to the servo object, with limits of 1100-1900
   baseServo.write(1500);
-
+  delay(500);
   // attaches the servo on the base pin to the servo object, with limits of 600-2400
-  wristServo.attach(wrist, 600, 2400);
+  wristServo.write(1800);
   // attaches the servo on the base pin to the servo object, with limits of 500-1500
   manipulatorServo.attach(manip);
-  manipulatorServo.write(70);
+  manipulatorServo.write(manipOpen);
 
   
   panLServo.attach(panL);
@@ -119,15 +127,6 @@ void setup()
   tiltRServo.write(0);
   
   mastServo.attach(mast);
-
-//  while(1) {
-////    printAnalog();
-////    printAngle();
-////    testServos();
-//    testActuators(); 
-////setActuatorSpeed(shoulder, 50);
-//  delay(50);
-//  }
 
   //attach ESC control pins to servo objects
   lfESC.attach(1);
@@ -188,6 +187,8 @@ void setup()
   {
     /* There was a problem detecting the BNO055 ... check your connections */
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    delay(1000);
+    bno.begin();
   }
   bno.setExtCrystalUse(true);
   delay(1000);
@@ -202,6 +203,11 @@ void loop()
   static int RF;
   static int LB;
   static int RB;
+  static int panLPos = 80;
+  static int tiltLPos = 0;
+  static int panRPos = 80;
+  static int tiltRPos = 0;
+  
   static int suspensionMode = 0;
   static int suspensionSpeed;
   while (Serial.available() < 1) {
@@ -244,15 +250,23 @@ void loop()
     clawPosition = Serial.parseInt();
     setMotors();
     setArmPositions(controlType);
+    panLServo.write(panLPos);
+    tiltLServo.write(tiltLPos);
+    panRServo.write(panRPos);
+    tiltRServo.write(tiltRPos);
   }
   else if (startChar == 'P') {
     //Ppan1,tilt1,pan2,tilt2,camera#(ignore)
     //TODO FIX JITTER
-    panLServo.write(Serial.parseInt());
-    tiltLServo.write(Serial.parseInt());
-    panRServo.write(Serial.parseInt());
-    tiltRServo.write(Serial.parseInt());
-    Serial.parseInt();  
+    panLPos = Serial.parseInt();
+    tiltLPos = Serial.parseInt();
+    panRPos = Serial.parseInt();
+    tiltRPos = Serial.parseInt();
+    panLServo.write(panLPos);
+    tiltLServo.write(tiltLPos);
+    panRServo.write(panRPos);
+    tiltRServo.write(tiltRPos);
+    Serial.parseInt();  //throw out camera#
   }
   else if (startChar == 'M') {
     static bool servoValue = false;
@@ -355,10 +369,10 @@ void setArmPositions(char controlType) {
   prevManipulatorPosition = manipulatorPosition;
   if (clawPosition != prevClawPosition) {
     if (clawPosition == 1) {
-      manipulatorServo.write(130); // 80
+      manipulatorServo.write(manipClose);
     }
     else {
-      manipulatorServo.write(70); // 15
+      manipulatorServo.write(manipOpen);
     }
   }
   prevClawPosition = clawPosition;
